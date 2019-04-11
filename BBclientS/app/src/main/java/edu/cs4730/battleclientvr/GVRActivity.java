@@ -8,6 +8,7 @@ import android.util.Log;
 import android.view.InputDevice;
 import android.view.KeyEvent;
 import android.view.MotionEvent;
+import android.widget.TextView;
 import android.widget.Toast;
 
 import com.google.vr.sdk.base.GvrActivity;
@@ -43,6 +44,10 @@ public class GVRActivity extends GvrActivity {
     // These two objects are the primary APIs for interacting with the Daydream controller.
     private ControllerManager controllerManager;
     private Controller controller;
+
+
+    Boolean JS = false, GP = false;
+
 
     //gvr variables
     CardboardOverlayView overlayView;
@@ -86,7 +91,6 @@ public class GVRActivity extends GvrActivity {
         //this is overlay code from google, that allows us to put text on the "screen" easily.
         overlayView = (CardboardOverlayView) findViewById(R.id.overlay);
         overlayView.show3DToast("Waiting to connect.");
-
     }
 
     public void setupGVR (String line, String line2) {
@@ -116,8 +120,33 @@ public class GVRActivity extends GvrActivity {
 
 
     private void onMove(int angle) {
-        
-        String cmdn = "";
+        String cmdn="move 0 0";
+        int temp = getAngle();
+        if ((temp > 336 && temp < 360)||(temp > 0 && temp < 26)){
+        cmdn = "move 0 -1";
+        }
+        if (temp > 27 && temp < 71){
+            cmdn = "move 1 -1";
+        }
+        if (temp > 72 && temp < 116){
+            cmdn = "move 1 0";
+        }
+        if (temp > 117 && temp < 161){
+            cmdn = "move 1 1";
+        }
+        if (temp > 162 && temp < 206){
+            cmdn = "move 0 1";
+        }
+        if (temp > 207 && temp < 251){
+            cmdn = "move -1 1";
+        }
+        if (temp > 252 && temp < 297){
+            cmdn = "move -1 0";
+        }
+        if (temp > 298 && temp < 335){
+            cmdn = "move -1 -1";
+        }
+
 
         /* based on direction you are facing, move that way.  If you want to.  This is your call.
         if I could suggest group of 45 angle, which is +/-22.5 from say 0 (UP), but we are using integers, so 22 or 23 you'll call..
@@ -412,6 +441,7 @@ public class GVRActivity extends GvrActivity {
     protected void onStart() {
         super.onStart();
 	//controllerManager.start();
+        getGameControllerIds();
 
     }
 
@@ -421,6 +451,78 @@ public class GVRActivity extends GvrActivity {
 	//controllerManager.stop();
     }
 
+
+    public ArrayList getGameControllerIds() {
+        ArrayList gameControllerDeviceIds = new ArrayList();
+        int[] deviceIds = InputDevice.getDeviceIds();
+        for (int deviceId : deviceIds) {
+            InputDevice dev = InputDevice.getDevice(deviceId);
+            int sources = dev.getSources();
+            // Verify that the device has gamepad buttons, control sticks, or both.
+            if (       ((sources & InputDevice.SOURCE_GAMEPAD)  == InputDevice.SOURCE_GAMEPAD)
+                    || ((sources & InputDevice.SOURCE_JOYSTICK) == InputDevice.SOURCE_JOYSTICK)) {
+                // This device is a game controller. Store its device ID.
+                String temp = dev.getName() + "Connected";
+                //input.setText(temp);
+                if (!gameControllerDeviceIds.contains(deviceId)) {
+                    gameControllerDeviceIds.add(deviceId);
+                }
+                //possible both maybe true.
+                if ((sources & InputDevice.SOURCE_GAMEPAD)  == InputDevice.SOURCE_GAMEPAD) GP= true;
+                if ((sources & InputDevice.SOURCE_JOYSTICK) == InputDevice.SOURCE_JOYSTICK) JS = true;
+            }
+
+        }
+        return gameControllerDeviceIds;
+    }
+
+    @Override
+    public boolean onGenericMotionEvent(android.view.MotionEvent motionEvent) {
+        float xaxis =0.0f, yaxis=0.0f;
+        boolean handled = false;
+
+        //if both are true, this code will show both JoyStick and dpad.  Which one you want to use is
+        // up to you
+        if (JS) {
+            xaxis = motionEvent.getAxisValue(MotionEvent.AXIS_X);
+            yaxis = motionEvent.getAxisValue(MotionEvent.AXIS_Y);
+            onMove(40);
+            //joy1.setText("JoyStick 1: X " + xaxis + " Y " + yaxis + "\n");
+            xaxis = motionEvent.getAxisValue(MotionEvent.AXIS_Z);
+            yaxis = motionEvent.getAxisValue(MotionEvent.AXIS_RZ);
+            //joy2.setText("JoyStick 2: X " + xaxis + " Y " + yaxis + "\n");
+            handled =true;
+        }
+        return handled;
+    }
+    @Override
+    public boolean onKeyDown(int keyCode, KeyEvent event) {
+        boolean handled = false;
+        if ((event.getSource() & InputDevice.SOURCE_GAMEPAD)
+                == InputDevice.SOURCE_GAMEPAD) {
+            if (event.getRepeatCount() == 0) {
+                switch (keyCode) {
+                    case KeyEvent.KEYCODE_BUTTON_R1:
+                        int temp = getAngle();
+                        String cmdn = "fire " + temp;
+
+
+                        //NOTE this the way you must set the command, otherwise you will get an concurrentency error.
+                        synchronized (mynetwork.cmd) {
+                            mynetwork.cmd = cmdn;
+                        }
+                        handled = true;
+                        break;
+                    default:break;
+
+                }
+            }
+            if (handled) {
+                return true;
+            }
+        }
+        return super.onKeyDown(keyCode, event);
+    }
     // We receive all events from the Controller through this listener. In this example, our
     // listener handles both ControllerManager.EventListener and Controller.EventListener events. which is the daydream.
 /*
